@@ -4,8 +4,6 @@ services:
     container_name: ruoyi-mysql
     image: mysql:8.0
     platform: linux/amd64 # 添加这一行
-    mem_limit: 312m # 限制内存为512MB
-    cpus: "0.3" # 限制最多使用50%的CPU
     ports:
       - "3306:3306"
     volumes:
