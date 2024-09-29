@@ -1,0 +1,90 @@
+version: '3.8'
+services:
+  ruoyi-mysql:
+    container_name: ruoyi-mysql
+    image: mysql:8.0
+    platform: linux/amd64 # 添加这一行
+    mem_limit: 312m # 限制内存为512MB
+    cpus: "0.3" # 限制最多使用50%的CPU
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/conf:/etc/mysql/conf.d
+      - ./mysql/logs:/logs
+      - ./mysql/data:/var/lib/mysql
+      - ./db:/docker-entrypoint-initdb.d
+    command: [ 'mysqld', '--innodb-buffer-pool-size=20M', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci', '--default-time-zone=+8:00', '--lower-case-table-names=1', '--max-connections=40' ]
+    environment:
+      MYSQL_DATABASE: 'ry-vue'
+      MYSQL_ROOT_PASSWORD: '123456' # 请确保这里有 root 用户密码
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ruoyi-network
+
+  ruoyi-redis:
+    container_name: ruoyi-redis
+    image: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/conf/redis.conf:/home/ruoyi/redis/redis.conf
+      - ./redis/data:/data
+    command: redis-server /home/ruoyi/redis/redis.conf
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ruoyi-network
+
+  ruoyi-nginx:
+    container_name: ruoyi-nginx
+    image: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./html/dist:/home/ruoyi/projects/ruoyi-ui
+      - ./conf/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      ruoyi-server:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ruoyi-network
+
+  ruoyi-server:
+    container_name: ruoyi-server
+    build:
+      context: .
+      dockerfile: ruoyi-dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./ruoyi/logs:/home/ruoyi/logs
+      - ./ruoyi/uploadPath:/home/ruoyi/uploadPath
+    depends_on:
+      ruoyi-mysql:
+        condition: service_healthy
+      ruoyi-redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080 || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ruoyi-network
+
+networks:
+  ruoyi-network:
+    driver: bridge
